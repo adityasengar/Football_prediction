@@ -6,46 +6,58 @@ from sklearn.metrics import accuracy_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.naive_bayes import GaussianNB
 import os
+import joblib
 
 INPUT_FILE = "data/features_dataset.csv"
+MODEL_DIR = "models"
+MODEL_PATH = os.path.join(MODEL_DIR, "ensemble_model.pkl")
 
 def train_and_evaluate(df):
-    """Trains and evaluates a suite of baseline classifiers."""
+    """Trains, evaluates, and saves an ensemble of classifiers."""
     
-    # Prepare the data for modeling
-    # Drop non-numeric/unnecessary columns
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    
+    # --- Data Preparation ---
     df = df.drop(['Date', 'HomeTeam', 'AwayTeam'], axis=1)
     
-    # Label encode categorical features like form
     for col in df.columns:
         if df[col].dtype == 'object':
             df[col] = LabelEncoder().fit_transform(df[col])
 
-    # Define features (X) and target (y)
     X = df.drop('FTR', axis=1)
     y = df['FTR']
     
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    # Define models
-    models = {
-        "Logistic Regression": LogisticRegression(max_iter=1000),
-        "SVM": SVC(),
-        "Decision Tree": DecisionTreeClassifier(),
-        "Random Forest": RandomForestClassifier(),
-        "Naive Bayes": GaussianNB()
-    }
+    # --- Baseline Models ---
+    clf1 = LogisticRegression(max_iter=1000, random_state=42)
+    clf2 = RandomForestClassifier(random_state=42)
+    clf3 = GaussianNB()
+    clf4 = DecisionTreeClassifier(random_state=42)
+
+    print("--- Training and Evaluating Baseline Models ---")
+    for clf, name in [(clf1, "Logistic Regression"), (clf2, "Random Forest"), (clf3, "Naive Bayes"), (clf4, "Decision Tree")]:
+        clf.fit(X_train, y_train)
+        y_pred = clf.predict(X_test)
+        print(f"  - {name} Accuracy: {accuracy_score(y_test, y_pred):.4f}")
     
-    print("--- Training Baseline Models ---")
-    for name, model in models.items():
-        print(f"Training {name}...")
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        print(f"  - Accuracy: {accuracy:.4f}\n")
+    # --- Ensemble Model ---
+    print("\n--- Training Ensemble Model ---")
+    # A simple majority-vote ensemble
+    eclf1 = VotingClassifier(estimators=[('lr', clf1), ('rf', clf2), ('gnb', clf3), ('dt', clf4)], voting='hard')
+    eclf1 = eclf1.fit(X_train, y_train)
+    y_pred_ensemble = eclf1.predict(X_test)
+    
+    ensemble_accuracy = accuracy_score(y_test, y_pred_ensemble)
+    print(f"  - Ensemble Accuracy: {ensemble_accuracy:.4f}")
+    
+    # --- Save the final model ---
+    print(f"\nSaving final ensemble model to {MODEL_PATH}...")
+    joblib.dump(eclf1, MODEL_PATH)
+    print("Model saved.")
 
 def main():
     """Main function to run the training pipeline."""
