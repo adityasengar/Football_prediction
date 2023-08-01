@@ -1,0 +1,17 @@
+# .gitignore
+
+# Data files
+data/
+*.csv
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.venv/
+venv/
+env/
+
+# Notebook checkpoints
+.ipynb_checkpoints
